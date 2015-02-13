@@ -36,19 +36,26 @@ def readSpectra():
     case = {1:'data_beta_0p35',
             2:'data_eps_0p08_beta_0p35',
             3:'data_beta_0p7',
-            4:'data_eps_0p13_beta_0p7'}
+            4:'data_eps_0p13_beta_0p7',
+            5:'data_eps_0p13_beta_0p7_900sec'}
+
     whichCase = args.case
     numOfDataFiles = args.files
 
     # dimensions
     Nx = 512
     Ny = 256
-    numOfSnapshots = 16
+
+    if whichCase == 5:
+        numOfSnapshots = 91
+    else:
+        numOfSnapshots = 16
+
     contentSize = Nx*Ny*numOfSnapshots
     spectrumF2D = np.zeros((Nx,Ny,numOfSnapshots))
     spectrumW2D = np.zeros((Nx,Ny,numOfSnapshots))
 
-     # printing without '\n'
+    # printing without '\n'
     sys.stdout.write('Reading & Unpacking Data Files ')
 
     for i in range(numOfDataFiles):
