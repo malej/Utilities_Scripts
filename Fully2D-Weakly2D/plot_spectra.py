@@ -188,18 +188,25 @@ def cart2polar(x,y,z,nSnaps):
 
     return r,theta,newZ
 
-
-def extractSpectrum(data, Nx, Ny, nSnaps):
-    """ Function that converts surface profile to its spectra ==> abs(A). """
+def extractSpectrum(data3D, Nx, Ny, nSnaps):
+    """ Function that converts surface profile to its spectra ==> abs(A)
+    from a full 3D array [Nx,Ny,nSnaps]"""
     spectrum = np.zeros((Nx,Ny,nSnaps))
-    temp = np.zeros((Nx,Ny))
-    chunkSize = Nx*Ny
-
     for k in range(nSnaps):
-        for j in range(Ny): # convert into 2d array
-            temp[:,j] = data[(chunkSize*k)+(j*Nx):(chunkSize*k)+(j+1)*Nx]
-        spectrum[:,:,k] = np.abs(np.fft.fft2(temp))        
+        spectrum[:,:,k] = np.abs(np.fft.fft2(data3D[:,:,k]))
     return spectrum
+
+#def extractSpectrum(data, Nx, Ny, nSnaps):
+#    """ Function that converts surface profile to its spectra ==> abs(A). """
+#    spectrum = np.zeros((Nx,Ny,nSnaps))
+#    temp = np.zeros((Nx,Ny))
+#    chunkSize = Nx*Ny
+#
+#    for k in range(nSnaps):
+#        for j in range(Ny): # convert into 2d array
+#            temp[:,j] = data[(chunkSize*k)+(j*Nx):(chunkSize*k)+(j+1)*Nx]
+#        spectrum[:,:,k] = np.abs(np.fft.fft2(temp))        
+#    return spectrum
 
 
 def plotPolarSpectrum(halfSpectrum, r, theta, nSnaps, model):

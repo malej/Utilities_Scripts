@@ -6,13 +6,14 @@ from matplotlib.ticker import LinearLocator, FormatStrFormatter
 import matplotlib.pyplot as plt
 
 def readFile():
-    path      = '/Users/mattmalej/Desktop/Check_WY_Energy/'
-    inputFile = 'F2D_Kx-Ky.bin'
+    #path      = '/Users/mattmalej/Desktop/Check_WY_Energy/'
+    path      = '/Users/mattmalej/test-RHS1-conserv-code/'
+    inputFile = 'snapshots_surface.bin'
     fullPath  = path+inputFile
 
-    Kx = 129
-    Ky = 129
-    Snaps = 10
+    Kx = 512
+    Ky = 256
+    Snaps = 151
     chunkSize = Kx*Ky*Snaps
 
     spectrum = np.zeros([Kx,Ky,Snaps],dtype=np.float64)
@@ -51,7 +52,6 @@ def calculateEnergy(spectrum_F2D):
 
 #####################################
 # Main... 
-
 spectrum_F2D = readFile()
 specMax = np.max(np.max(np.max(spectrum_F2D[:,:,0])))
 spectrum_F2D = spectrum_F2D/specMax

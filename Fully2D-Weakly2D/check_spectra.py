@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 import sys
+import os
 import struct
 import argparse
 import numpy as np
@@ -11,16 +12,124 @@ from mpl_toolkits.mplot3d import axes3d, Axes3D
 from matplotlib.ticker import LinearLocator, FormatStrFormatter
 from plot_spectra import extractSpectrum 
 
-def checkSpectra():
-    """Function that reads in spectra and and checks its consisency."""
-    # parsing the input arguments
+def parseInput():
+    """Function that parses input from command line."""
     parser = argparse.ArgumentParser(description='Postprocessed spectra checking and plotting.')
+    parser.add_argument('-pa','--printArgs', action='store_true',
+                        help='print to screen the list of input arguments and state (default: no printing)')
     parser.add_argument('-p','--plot', action='store_true',
                         help='plot the initial and final spectra (default: no plotting)')
     parser.add_argument('-c','--case', type=int, default=1,
                         help='simulation case:1,2,3,4 to be read in (default: 1)')
+    parser.add_argument('-x','--Nx', type=int, default=512,
+                        help='number of points in the main x-direction (default: 512)')
+    parser.add_argument('-y','--Ny', type=int, default=256,
+                        help='number of points in the transverse y-direction (default: 256)')
+    parser.add_argument('-s','--snaps', type=int, default=151,
+                        help='number of snapshots to be read in (default: 151)')
+    parser.add_argument('-d','--dir', type=str, default=os.environ['PWD'],
+                        help='file path directory (default: current directory)')
+    parser.add_argument('-f','--filePrefix', type=str, default='snapshots_surface',
+                        help='file name prefix; e.g., surface_snapshots if file is surface_snapshots99.bin (default: snapshots_surface)')
     args = parser.parse_args()
-    print 'Input arguments are: ', args
+
+    if args.printArgs:
+        print 'Input arguments are: ', args
+    return args
+
+
+def readSurface(args):
+    """Function that read in surface elevation from Fully/Weakly 2D run."""
+    path = args.dir
+    fileName = args.filePrefix+'.bin'
+    
+    # dimensions
+    Nx = args.Nx
+    Ny = args.Ny
+    numOfSnapshots = args.snaps
+    contentSize = Nx*Ny*numOfSnapshots
+
+     # printing without '\n'
+    sys.stdout.write('Reading & Unpacking SURFACE ELEVATION Data Files ')
+
+    # reading in the spectra
+    fileHandle = open(fileName, 'rb')
+    content = fileHandle.read(8*contentSize) # 8, because doubles are 8 bytes
+    data = struct.unpack('d'*contentSize,content)
+    sys.stdout.write('...')
+    sys.stdout.flush()  # flush the stdout buffer
+    fileHandle.close()
+
+    freeSurface = sliceData(data,Nx,Ny,numOfSnapshots)
+    print ('DONE')
+    return freeSurface
+
+
+def readPotential(args):
+    """Function that read in velocity potential from Fully/Weakly 2D run."""
+    path = args.dir
+    fileName = 'snapshots_potential.bin'
+    
+    # dimensions
+    Nx = args.Nx
+    Ny = args.Ny
+    numOfSnapshots = args.snaps
+    contentSize = Nx*Ny*numOfSnapshots
+
+     # printing without '\n'
+    sys.stdout.write('Reading & Unpacking VELOCITY POTENTIAL Data Files ')
+
+    # reading in the spectra
+    fileHandle = open(fileName, 'rb')
+    content = fileHandle.read(8*contentSize) # 8, because doubles are 8 bytes
+    data = struct.unpack('d'*contentSize,content)
+    sys.stdout.write('...')
+    sys.stdout.flush()  # flush the stdout buffer
+    fileHandle.close()
+
+    velocityPotential = sliceData(data,Nx,Ny,numOfSnapshots)
+    print ('DONE')
+    return velocityPotential
+
+
+def readRHS1(args):
+    """Function that read in RHS1 (right-hand-side of d\zeta/dt from Fully/Weakly 2D run."""
+    path = args.dir
+    fileName = 'snapshots_RHS1.bin'
+    
+    # dimensions
+    Nx = args.Nx
+    Ny = args.Ny
+    numOfSnapshots = args.snaps
+    contentSize = Nx*Ny*numOfSnapshots
+
+     # printing without '\n'
+    sys.stdout.write('Reading & Unpacking RHS1 (right-hand-side of d/dt{zeta}) Data Files ')
+
+    # reading in the spectra
+    fileHandle = open(fileName, 'rb')
+    content = fileHandle.read(8*contentSize) # 8, because doubles are 8 bytes
+    data = struct.unpack('d'*contentSize,content)
+    sys.stdout.write('...')
+    sys.stdout.flush()  # flush the stdout buffer
+    fileHandle.close()
+
+    RHS1 = sliceData(data,Nx,Ny,numOfSnapshots)
+    print ('DONE')
+    return RHS1
+
+
+def setWaveNumbers(args):
+    """Function which sets the appropriate range of wavenumber in Fourier space."""
+    Nx = args.Nx
+    Ny = args.Ny
+    kx = np.arange(Nx)
+    ky = np.arange(-Ny/2,Ny/2)
+    return [kx,ky] 
+
+
+def checkSpectra(args):
+    """Function that reads in spectra and and checks its consisency."""
 
     # simulation directories
     fileF2D = '/Users/mattmalej/Dropbox/AveragedData_for_WC/case-'+\
@@ -32,8 +141,8 @@ def checkSpectra():
             2:'data_eps_0p08_beta_0p35',
             3:'data_beta_0p7',
             4:'data_eps_0p13_beta_0p7',
-            #0:'/Volumes/1TB_HD_2/Simulations_Backup/Fully2D_200_sim/'}
-            0:'/Users/mattmalej/phaseWave/hosmModule/temp/'}
+            #5:'/Volumes/1TB_HD_2/Simulations_Backup/Fully2D_200_sim/'}
+            0:'/Users/mattmalej/test-RHS1-conserv-code'}
     whichCase = args.case
     #fileAux = case[args.case]+'data_beta_0p35/'+'surface1.bin' #needs 512x256
     fileAux = case[args.case]+'snapshots_surface.bin'
@@ -166,20 +275,23 @@ def plotSurface(surface, Nx, Ny, nSnaps):
         #plt.show()
 
 
-def sliceSpectrum(data, Nx, Ny, nSnaps):
-    """ Function that converts 1D array into full 3D of [Nx,Ny,numOfSnapshots. """
-    spectrum = np.zeros((Nx,Ny,nSnaps))
+def sliceData(data, Nx, Ny, nSnaps):
+    """ Function that converts 1D array into full 3D of [Nx,Ny,numOfSnapshots]. """
+    data3D = np.zeros((Nx,Ny,nSnaps))
     temp = np.zeros((Nx,Ny))
     chunkSize = Nx*Ny
 
     for k in range(nSnaps):
         for j in range(Ny):
-            spectrum[:,j,k] = data[(k*chunkSize)+(j*Nx):(k*chunkSize)+(j+1)*Nx]
-    return spectrum
+            data3D[:,j,k] = data[(k*chunkSize)+(j*Nx):(k*chunkSize)+(j+1)*Nx]
+    return data3D
 
 
-def plotSpectrum(spec, kx, ky, nSnaps, case, model):
+def plotSpectrum(spec, kx, ky, args, model):
     """ Function that plots the spectra with Matplotlib. """
+    case = args.case
+    nSnaps = args.snaps
+
     Nx = kx.size
     Ny = ky.size
 
@@ -207,8 +319,85 @@ def plotSpectrum(spec, kx, ky, nSnaps, case, model):
     ax.set_title(model)
     ax.set_zlim(-0.5,1.0)
     
-    #plt.show()
+    if args.plot:
+        plt.show()
+
+
+def trap2D(data,args):
+    """ Function that returns a 2D trapezoidal integral array of snapshots."""
+    Lx = Ly =  46.8392997519448
+    x = np.linspace(0.0, Lx, args.Nx)
+    y = np.linspace(0.0, Ly, args.Ny)
+    dx = Lx/args.Nx
+    dy = Ly/args.Ny
+
+    # Creating Trapzoidal weight matrix
+    #  |---------------------|
+    #  | 1 2 2 2 ... 2 2 2 1 |
+    #  | 2 4 4 4 ... 4 4 4 2 |
+    #  | 2 4 4 4 ... 4 4 4 2 |
+    #  | . . . . ... . . . . |
+    #  | 2 4 4 4 ... 4 4 4 2 |
+    #  | 2 4 4 4 ... 4 4 4 2 |
+    #  | 1 2 2 2 ... 2 2 2 1 |
+    #  |---------------------|
+    weights = np.ones((args.Nx,args.Ny))
+    # set perimeter 2's and interior weights 4's
+    weights[0,1:-1] = 2.0
+    weights[-1,1:-1] = 2.0
+    weights[1:-1,0] = 2.0
+    weights[1:-1,-1] = 2.0
+    weights[1:-1,1:-1] = 4.0
+
+    integrand = weights*data
+    sum = 0.0
+    for i in range(args.Nx):
+        for j in range(args.Ny):
+            sum = sum + integrand[i,j]
+
+    integral = dx*dy/4.0 * sum 
+    # returning trapezoidal 2D integral of input 'data' 
+    return integral
+
+
+def computeRealEnergy(surface,potential,RHS1,args):
+    """Function that computes real energy from theory."""
+    nSnaps = args.snaps
+    gv = 9.8 # gravitational acceleration
+
+    print "\n ENERGY COMPUTATION FROM => phi*RHS1 + gv*zeta^2 "
+    print "---------------------------------------------------"
+    # buffers
+    energySnaps = np.zeros(nSnaps)
+    for i in range(nSnaps):
+        energyIntegrand =  potential[:,:,i]*RHS1[:,:,i] + gv*surface[:,:,i]**2
+        energySnaps[i] = trap2D(energyIntegrand,args)
+        print "time t = ", i, " sec ==> Energy is ", energySnaps[i]
+    
+    relDiff = np.abs(energySnaps[-1] - energySnaps[0])/ energySnaps[-1]
+    print " ENERGY RELATIVE DIFFERENCE abs(final-initial)/final is: ", relDiff
+    return energySnaps
 
 
 if __name__=="__main__":
-    checkSpectra()
+    args = parseInput()
+    surface = readSurface(args)
+    potential = readPotential(args)
+    RHS1 = readRHS1(args)
+
+    realEnergy = computeRealEnergy(surface,potential,RHS1,args)
+
+    spectrum = extractSpectrum(surface,
+                               args.Nx,
+                               args.Ny,
+                               args.snaps)
+
+    model = 'Fully2D w/o integrating factor'
+    [kx,ky] = setWaveNumbers(args)
+    plotSpectrum(spectrum, 
+                 kx, 
+                 ky, 
+                 args, 
+                 model) 
+
+    #checkSpectra(inputArguments, surface)
